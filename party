@@ -1,6 +1,6 @@
 -- ==================== AUTO PARTY MODULE ====================
 -- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
--- Yêu cầu: WindUI, các biến global từ file chính
+-- Yêu cầu: WindUI, các biến global từ file chínhd
 -- ===========================================================
 
 local Module = {}
@@ -45,19 +45,9 @@ local SharedJobIdSystem = {
     ScanInterval = 300,
     IsScanning = false,
     
+    -- ✅ CHỈ GIỮ LẠI WORLD 1
     ValidWorlds = {
-        {PlaceId = 4310463616, Name = 'World 1'},
-        {PlaceId = 4310463940, Name = 'World 2'},
-        {PlaceId = 4465987684, Name = 'World 3'},
-        {PlaceId = 4646472003, Name = 'World 4'},
-        {PlaceId = 5703355191, Name = 'World 5'},
-        {PlaceId = 6075083204, Name = 'World 6'},
-        {PlaceId = 6847035264, Name = 'World 7'},
-        {PlaceId = 9944262922, Name = 'World 8'},
-        {PlaceId = 10651517727, Name = 'World 9'},
-        {PlaceId = 14914684761, Name = 'World 10'},
-        {PlaceId = 6510868181, Name = 'PvpArena'},
-        {PlaceId = 7499964980, Name = 'Marketplace'},
+        {PlaceId = 4310463616, Name = 'World 1'}
     }
 }
 
@@ -132,7 +122,7 @@ function SharedJobIdSystem:ScanAllWorlds()
     end
     
     self.IsScanning = true
-    warn("🔍 Bắt đầu scan JobId của tất cả World...")
+    warn("🔍 Bắt đầu scan JobId World 1...")
     
     task.spawn(function()
         for _, world in ipairs(self.ValidWorlds) do
@@ -207,33 +197,23 @@ function SharedJobIdSystem:LoadJobIdCache()
     return success
 end
 
-function SharedJobIdSystem:GetRandomCachedJobId()
-    local availableWorlds = {}
+function SharedJobIdSystem:GetWorld1JobId()
+    local world1PlaceId = 4310463616
+    local data = self.WorldJobIdCache[world1PlaceId]
     
-    for placeId, data in pairs(self.WorldJobIdCache) do
-        if data.JobIds and #data.JobIds > 0 then
-            table.insert(availableWorlds, {
-                PlaceId = placeId,
-                Name = data.Name,
-                JobIds = data.JobIds
-            })
-        end
+    if data and data.JobIds and #data.JobIds > 0 then
+        local randomJobId = data.JobIds[math.random(1, #data.JobIds)]
+        
+        return {
+            PlaceId = world1PlaceId,
+            Name = "World 1",
+            JobId = randomJobId.JobId,
+            Players = randomJobId.Players
+        }
     end
     
-    if #availableWorlds == 0 then
-        warn("❌ Không có World nào trong cache")
-        return nil
-    end
-    
-    local randomWorld = availableWorlds[math.random(1, #availableWorlds)]
-    local randomJobId = randomWorld.JobIds[math.random(1, #randomWorld.JobIds)]
-    
-    return {
-        PlaceId = randomWorld.PlaceId,
-        Name = randomWorld.Name,
-        JobId = randomJobId.JobId,
-        Players = randomJobId.Players
-    }
+    warn("❌ Không có World 1 trong cache")
+    return nil
 end
 
 function SharedJobIdSystem:SaveJobId(jobId, dungeonInfo)
@@ -464,18 +444,21 @@ local function inviteMember(playerName)
     end)
 end
 
+-- ✅ SỬA LẠI ACCEPT INVITE THEO YÊU CẦU
 local function acceptInvite(fromPlayer)
     pcall(function()
-        local player = game:GetService("Players"):FindFirstChild(fromPlayer)
-        if player then
-            game:GetService("ReplicatedStorage").Shared.Party.AcceptedInvite:FireServer(player)
-            warn("✅ Accepted invite from:", fromPlayer)
-            WindUI:Notify({
-                Title = "Party Invite",
-                Content = "✅ Accepted from " .. fromPlayer,
-                Duration = 2
-            })
-        end
+        local args = {
+            [1] = game:GetService("Players"):WaitForChild(fromPlayer)
+        }
+        
+        game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Party"):WaitForChild("AcceptedInvite"):FireServer(unpack(args))
+        
+        warn("✅ Accepted invite from:", fromPlayer)
+        WindUI:Notify({
+            Title = "Party Invite",
+            Content = "✅ Accepted from " .. fromPlayer,
+            Duration = 2
+        })
     end)
 end
 
@@ -499,6 +482,7 @@ local function getMissingMembers()
     return missing
 end
 
+-- ✅ SỬA LẠI PARTY MONITORING - CẢ LEADER VÀ MEMBER ĐỀU REJOIN
 local function startPartyMonitoring()
     if PartyGlobals.isMonitoringParty then 
         warn("⚠️ Party monitoring already active")
@@ -518,67 +502,76 @@ local function startPartyMonitoring()
     
     task.spawn(function()
         while Toggles.AutoPartyMonitor and Toggles.AutoPartyMonitor.Value do
-            if isLeader() then
-                local membersToCheck = getMembersToInvite()
-                local currentCount = getCurrentPartyMemberCount()
-                local expectedTotal = #membersToCheck + 1
+            -- ✅ KIỂM TRA CHO CẢ LEADER VÀ MEMBER
+            local membersToCheck = getMembersToInvite()
+            local currentCount = getCurrentPartyMemberCount()
+            local expectedTotal = #membersToCheck + 1
+            
+            if currentCount >= expectedTotal then
+                warn("✅ Party đã đủ", expectedTotal, "người!")
+                rejoinAttempts = 0
+            else
+                warn("⚠️ Party thiếu", expectedTotal - currentCount, "người")
                 
-                if currentCount >= expectedTotal then
-                    warn("✅ Party đã đủ", expectedTotal, "người!")
-                    rejoinAttempts = 0
-                else
-                    warn("⚠️ Party thiếu", expectedTotal - currentCount, "người")
-                    
-                    local missingMembers = getMissingMembers()
-                    local hasOnlineMissing = false
-                    local onlineNames = {}
-                    
-                    for _, memberName in ipairs(missingMembers) do
-                        if game:GetService("Players"):FindFirstChild(memberName) then
-                            hasOnlineMissing = true
-                            table.insert(onlineNames, memberName)
-                        end
+                local missingMembers = getMissingMembers()
+                local onlineMissingCount = 0
+                
+                for _, memberName in ipairs(missingMembers) do
+                    if game:GetService("Players"):FindFirstChild(memberName) then
+                        onlineMissingCount = onlineMissingCount + 1
                     end
+                end
+                
+                -- ✅ NẾU CÓ NGƯỜI THIẾU VÀ ONLINE → CẢ LEADER VÀ MEMBER ĐỀU REJOIN
+                if onlineMissingCount > 0 then
+                    local timeSinceLastRejoin = tick() - lastRejoinTime
                     
-                    if hasOnlineMissing then
-                        for _, memberName in ipairs(onlineNames) do
-                            inviteMember(memberName)
-                            task.wait(2)
-                        end
+                    if timeSinceLastRejoin >= 90 and rejoinAttempts < 5 then
+                        warn("🔄 Phát hiện party thiếu người → CẢ LEADER VÀ MEMBER đều rejoin về World 1")
+                        rejoinAttempts = rejoinAttempts + 1
+                        lastRejoinTime = tick()
                         
-                        task.wait(15)
-                        currentCount = getCurrentPartyMemberCount()
+                        -- ✅ LẤY WORLD 1 JOBID TỪ CACHE
+                        local world1Server = SharedJobIdSystem:GetWorld1JobId()
                         
-                        if currentCount < expectedTotal then
-                            local timeSinceLastRejoin = tick() - lastRejoinTime
+                        if world1Server then
+                            warn("🎲 Rejoin về: World 1 - JobId:", world1Server.JobId)
                             
-                            if timeSinceLastRejoin >= 120 and rejoinAttempts < 3 then
-                                warn("🔄 Mời không được → Rejoin để gather party")
-                                rejoinAttempts = rejoinAttempts + 1
-                                lastRejoinTime = tick()
-                                
-                                local cachedServer = SharedJobIdSystem:GetRandomCachedJobId()
-                                
-                                if cachedServer then
-                                    warn("🎲 Rejoin về:", cachedServer.Name)
-                                    WindUI:Notify({
-                                        Title = "Gathering Party",
-                                        Content = "🔄 Rejoin về " .. cachedServer.Name .. "...",
-                                        Duration = 5
-                                    })
+                            if isLeader() then
+                                WindUI:Notify({
+                                    Title = "Gathering Party",
+                                    Content = "🔄 Leader rejoin về World 1...\nJobId: " .. world1Server.JobId:sub(1, 20),
+                                    Duration = 5
+                                })
+                            else
+                                WindUI:Notify({
+                                    Title = "Gathering Party",
+                                    Content = "🔄 Member rejoin về World 1...\nJobId: " .. world1Server.JobId:sub(1, 20),
+                                    Duration = 5
+                                })
+                            end
+                            
+                            task.wait(2)
+                            -- ✅ REJOIN VỀ CÙNG PLACEID VÀ JOBID
+                            SharedJobIdSystem:TeleportToPlace(world1Server.PlaceId, world1Server.JobId)
+                            return
+                        else
+                            warn("❌ Không có World 1 JobId trong cache - Trigger scan")
+                            SharedJobIdSystem:ScanAllWorlds()
+                        end
+                    else
+                        -- Mời lại nếu chưa đến lúc rejoin
+                        if isLeader() then
+                            warn("🔵 Leader đang mời lại members...")
+                            for _, memberName in ipairs(missingMembers) do
+                                if game:GetService("Players"):FindFirstChild(memberName) then
+                                    inviteMember(memberName)
                                     task.wait(2)
-                                    SharedJobIdSystem:TeleportToPlace(cachedServer.PlaceId, cachedServer.JobId)
-                                    return
-                                else
-                                    SharedJobIdSystem:ScanAllWorlds()
                                 end
                             end
                         end
                     end
                 end
-            else
-                warn("⚠️ Not leader, stopping monitoring")
-                break
             end
             
             task.wait(10)
@@ -832,7 +825,7 @@ local function createAutoPartyTab()
     
     ConfigSystem.registerUIElement("AutoInviteAll", TabParty:Toggle({ 
         Title = "Auto Invite All", 
-        Description = "Tự động mời members",
+        Description = "Tự động mời members (Leader only)",
         Default = ToggleStates.AutoInviteAll or false,
         Callback = function(s) 
             if Toggles.AutoInviteAll then
@@ -872,28 +865,69 @@ local function createAutoPartyTab()
     
     TabParty:Divider({ Text = "Party Control" })
     
+    -- ✅ AUTO ACCEPT INVITE - VÒNG LẶP LIÊN TỤC
     ConfigSystem.registerUIElement("AutoAcceptInvite", TabParty:Toggle({ 
         Title = "Auto Accept Invite", 
-        Description = "Tự động accept invite từ leader", 
+        Description = "Tự động accept invite từ leader (Member only)", 
         Default = ToggleStates.AutoAcceptInvite or false,
         Callback = function(s) 
             if Toggles.AutoAcceptInvite then
                 Toggles.AutoAcceptInvite:SetValue(s)
             end
             
-            if s and isLeader() then
-                WindUI:Notify({
-                    Title = "Warning",
-                    Content = "⚠️ Bạn là leader!",
-                    Duration = 3
-                })
+            if s then
+                if isLeader() then
+                    WindUI:Notify({
+                        Title = "Warning",
+                        Content = "⚠️ Bạn là leader!",
+                        Duration = 3
+                    })
+                end
+                
+                -- ✅ VÒNG LẶP LIÊN TỤC ACCEPT INVITE
+                task.spawn(function()
+                    while Toggles.AutoAcceptInvite and Toggles.AutoAcceptInvite.Value do
+                        if not isLeader() then
+                            pcall(function()
+                                local leaderPlayer = game:GetService("Players"):FindFirstChild(PartyGlobals.PartySetup.Leader)
+                                
+                                if leaderPlayer then
+                                    local currentPartyId = getMyPartyId()
+                                    
+                                    if not currentPartyId then
+                                        warn("📨 Đang thử accept invite từ:", PartyGlobals.PartySetup.Leader)
+                                        acceptInvite(PartyGlobals.PartySetup.Leader)
+                                        
+                                        task.wait(2)
+                                        
+                                        local newPartyId = getMyPartyId()
+                                        if newPartyId then
+                                            WindUI:Notify({
+                                                Title = "Party",
+                                                Content = "✅ Đã vào party với " .. PartyGlobals.PartySetup.Leader,
+                                                Duration = 3
+                                            })
+                                            warn("✅ Đã vào party thành công!")
+                                        end
+                                    end
+                                else
+                                    warn("⚠️ Leader", PartyGlobals.PartySetup.Leader, "không online")
+                                end
+                            end)
+                        end
+                        
+                        task.wait(3)
+                    end
+                    
+                    warn("❌ Auto Accept Invite đã tắt")
+                end)
             end
         end 
     }))
     
     ConfigSystem.registerUIElement("AutoPartyMonitor", TabParty:Toggle({ 
         Title = "Auto Monitor Party", 
-        Description = "Tự động monitor party (leader only)", 
+        Description = "CẢ LEADER VÀ MEMBER đều rejoin về World 1 (cùng JobId) khi thiếu người", 
         Default = ToggleStates.AutoPartyMonitor or false,
         Callback = function(s) 
             if Toggles.AutoPartyMonitor then
@@ -901,15 +935,7 @@ local function createAutoPartyTab()
             end
             
             if s then 
-                if not isLeader() then
-                    WindUI:Notify({
-                        Title = "Warning",
-                        Content = "⚠️ Bạn không phải leader!",
-                        Duration = 3
-                    })
-                else
-                    startPartyMonitoring() 
-                end
+                startPartyMonitoring() 
             end 
         end 
     }))
@@ -918,19 +944,6 @@ local function createAutoPartyTab()
         while task.wait(3) do 
             updateStatus() 
         end 
-    end)
-    
-    pcall(function() 
-        game:GetService("ReplicatedStorage").Shared.Party.InvitedToParty.OnClientEvent:Connect(function(p) 
-            if Toggles.AutoAcceptInvite and Toggles.AutoAcceptInvite.Value then
-                if p.Name == PartyGlobals.PartySetup.Leader then
-                    if not getMyPartyId() then
-                        task.wait(0.3) 
-                        acceptInvite(p.Name)
-                    end
-                end
-            end
-        end) 
     end)
 end
 
