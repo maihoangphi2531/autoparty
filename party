@@ -1,6 +1,6 @@
 -- ==================== AUTO PARTY MODULE ====================
 -- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
--- Yêu cầu: WindUI, các biến global từ file chínhd
+-- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
 local Module = {}
@@ -483,6 +483,7 @@ local function getMissingMembers()
 end
 
 -- ✅ SỬA LẠI PARTY MONITORING - CẢ LEADER VÀ MEMBER ĐỀU REJOIN
+-- ✅ SỬA LẠI PARTY MONITORING - CẢ LEADER VÀ MEMBER ĐỀU REJOIN
 local function startPartyMonitoring()
     if PartyGlobals.isMonitoringParty then 
         warn("⚠️ Party monitoring already active")
@@ -559,17 +560,7 @@ local function startPartyMonitoring()
                             warn("❌ Không có World 1 JobId trong cache - Trigger scan")
                             SharedJobIdSystem:ScanAllWorlds()
                         end
-                    else
-                        -- Mời lại nếu chưa đến lúc rejoin
-                        if isLeader() then
-                            warn("🔵 Leader đang mời lại members...")
-                            for _, memberName in ipairs(missingMembers) do
-                                if game:GetService("Players"):FindFirstChild(memberName) then
-                                    inviteMember(memberName)
-                                    task.wait(2)
-                                end
-                            end
-                        end
+                    -- ✅ XÓA ĐOẠN ELSE NÀY - ĐỂ AUTO INVITE ALL LO
                     end
                 end
             end
@@ -579,7 +570,6 @@ local function startPartyMonitoring()
         PartyGlobals.isMonitoringParty = false
     end)
 end
-
 -- ==================== CONFIG FUNCTIONS ====================
 local function savePartyConfig()
     if not writefile or PartyGlobals.isLoadingPartyConfig then return end
