@@ -1,6 +1,6 @@
 -- ==================== AUTO PARTY MODULE ====================
 -- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
--- Yêu cầu: WindUI, các biến global từ file chính
+-- Yêu cầu: WindUI, các biến global từ file chínhd
 -- ===========================================================
 
 local Module = {}
@@ -33,7 +33,7 @@ local PartyGlobals = {
     -- ✅ THÊM: Lưu JobId chung cho cả team
     SharedRejoinJobId = nil,
     SharedRejoinPlaceId = nil,
-    SharedRejoinFile = d .. '_PartySharedRejoin.txt',
+    SharedRejoinFile = 'AnyaHub_PartySharedRejoin.txt', -- ✅ FILE CỐ ĐỊNH CHO TẤT CẢ INSTANCES
     -- ✅ THÊM: Độ trễ kiểm tra party (có thể config)
     PartyCheckDelay = 10
 }
@@ -503,19 +503,47 @@ end
 
 -- ✅ LƯU JOBID CHUNG CHO CẢ TEAM
 local function saveSharedRejoinJobId(placeId, jobId)
-    if not writefile then return end
+    if not writefile then 
+        warn("❌ [SAVE] Không có writefile!")
+        return false
+    end
     
-    pcall(function()
+    local success = pcall(function()
         local data = {
             PlaceId = placeId,
             JobId = jobId,
             Timestamp = tick()
         }
-        writefile(PartyGlobals.SharedRejoinFile, e:JSONEncode(data))
-        PartyGlobals.SharedRejoinPlaceId = placeId
-        PartyGlobals.SharedRejoinJobId = jobId
-        warn("💾 [SAVE] PlaceId:", placeId, "JobId:", jobId:sub(1,20), "File:", PartyGlobals.SharedRejoinFile)
+        local jsonData = e:JSONEncode(data)
+        writefile(PartyGlobals.SharedRejoinFile, jsonData)
+        warn("💾 [SAVE] Đang ghi file:", PartyGlobals.SharedRejoinFile)
+        
+        -- Đợi và kiểm tra file đã được tạo
+        task.wait(0.5)
+        
+        if isfile and isfile(PartyGlobals.SharedRejoinFile) then
+            local content = readfile(PartyGlobals.SharedRejoinFile)
+            if content == jsonData then
+                PartyGlobals.SharedRejoinPlaceId = placeId
+                PartyGlobals.SharedRejoinJobId = jobId
+                warn("✅ [SAVE] File đã ghi thành công!")
+                warn("💾 [SAVE] PlaceId:", placeId, "JobId:", jobId:sub(1,20))
+                return true
+            else
+                warn("⚠️ [SAVE] Nội dung file không khớp!")
+                return false
+            end
+        else
+            warn("❌ [SAVE] File không tồn tại sau khi ghi!")
+            return false
+        end
     end)
+    
+    if not success then
+        warn("❌ [SAVE] Lỗi khi ghi file!")
+    end
+    
+    return success
 end
 
 -- ✅ TẢI JOBID CHUNG
@@ -727,32 +755,57 @@ local function startPartyMonitoring()
                                 if world1Server then
                                     targetPlaceId = world1Server.PlaceId
                                     targetJobId = world1Server.JobId
-                                    saveSharedRejoinJobId(targetPlaceId, targetJobId)
-                                    warn("✅ [STEP 3] LEADER đã tạo JobId:", targetJobId:sub(1,20))
-                                    warn("⏳ [STEP 3] LEADER đợi 5 giây để file được ghi xong...")
-                                    task.wait(5) -- Tăng lên 5 giây để đảm bảo file được ghi
+                                    
+                                    warn("💾 [STEP 3] LEADER đang lưu JobId vào file...")
+                                    local saveSuccess = saveSharedRejoinJobId(targetPlaceId, targetJobId)
+                                    
+                                    if saveSuccess then
+                                        warn("✅ [STEP 3] LEADER đã lưu JobId thành công:", targetJobId:sub(1,20))
+                                        warn("⏳ [STEP 3] LEADER đợi 3 giây để Member đọc file...")
+                                        task.wait(3)
+                                    else
+                                        warn("❌ [STEP 3] LEADER không thể lưu file!")
+                                        targetJobId = nil
+                                    end
                                 else
                                     warn("❌ [STEP 3] Không có World 1 JobId - Trigger scan")
                                     SharedJobIdSystem:ScanAllWorlds()
                                 end
                             else
                                 warn("👤 [STEP 3] MEMBER đợi LEADER tạo JobId...")
-                                -- Retry 3 lần, mỗi lần đợi 10 giây
+                                -- Retry 5 lần, mỗi lần đợi 8 giây
                                 local retryCount = 0
-                                local maxRetries = 3
+                                local maxRetries = 5
                                 
                                 while retryCount < maxRetries do
                                     retryCount = retryCount + 1
-                                    warn("🔄 [STEP 3] MEMBER thử lần", retryCount, "/", maxRetries)
-                                    task.wait(10)
+                                    local waitTime = 8
+                                    warn("🔄 [STEP 3] MEMBER thử lần", retryCount, "/", maxRetries, "- Đợi", waitTime, "giây...")
+                                    task.wait(waitTime)
                                     
-                                    if reloadSharedRejoinJobId() then
+                                    -- Kiểm tra file có tồn tại không
+                                    if isfile and isfile(PartyGlobals.SharedRejoinFile) then
+                                        warn("📂 [STEP 3] File tồn tại, thử đọc...")
+                                    else
+                                        warn("❌ [STEP 3] File chưa tồn tại:", PartyGlobals.SharedRejoinFile)
+                                        if retryCount < maxRetries then
+                                            continue
+                                        end
+                                    end
+                                    
+                                    local reloadSuccess = reloadSharedRejoinJobId()
+                                    
+                                    if reloadSuccess and PartyGlobals.SharedRejoinJobId then
                                         targetPlaceId = PartyGlobals.SharedRejoinPlaceId
                                         targetJobId = PartyGlobals.SharedRejoinJobId
                                         warn("✅ [STEP 3] MEMBER đã nhận JobId từ LEADER:", targetJobId:sub(1,20))
+                                        warn("✅ [STEP 3] PlaceId:", targetPlaceId)
                                         break
                                     else
-                                        warn("⚠️ [STEP 3] MEMBER chưa nhận được JobId, retry...")
+                                        warn("⚠️ [STEP 3] MEMBER chưa nhận được JobId (Thử lần", retryCount, "/", maxRetries, ")")
+                                        if retryCount < maxRetries then
+                                            warn("⏳ [STEP 3] Đợi thêm...")
+                                        end
                                     end
                                 end
                                 
