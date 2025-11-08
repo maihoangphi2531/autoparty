@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luad
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -450,6 +450,50 @@ local function getExpectedPartySize()
         end
     end
     return count
+end
+
+-- ✅ ĐẾM SỐ LƯỢNG MEMBER ĐANG ONLINE
+local function getOnlineMembersCount()
+    local count = 0
+    
+    -- Đếm Leader nếu online
+    if PartyGlobals.PartySetup.Leader ~= "" then
+        if game:GetService("Players"):FindFirstChild(PartyGlobals.PartySetup.Leader) then
+            count = count + 1
+        end
+    end
+    
+    -- Đếm Members nếu online
+    for _, memberName in ipairs(PartyGlobals.PartySetup.Members) do
+        if memberName ~= "" then
+            if game:GetService("Players"):FindFirstChild(memberName) then
+                count = count + 1
+            end
+        end
+    end
+    
+    return count
+end
+
+-- ✅ KIỂM TRA TẤT CẢ MEMBERS CÓ ONLINE KHÔNG
+local function areAllMembersOnline()
+    -- Kiểm tra Leader
+    if PartyGlobals.PartySetup.Leader ~= "" then
+        if not game:GetService("Players"):FindFirstChild(PartyGlobals.PartySetup.Leader) then
+            return false
+        end
+    end
+    
+    -- Kiểm tra Members
+    for _, memberName in ipairs(PartyGlobals.PartySetup.Members) do
+        if memberName ~= "" then
+            if not game:GetService("Players"):FindFirstChild(memberName) then
+                return false
+            end
+        end
+    end
+    
+    return true
 end
 
 local function inviteMember(playerName)
