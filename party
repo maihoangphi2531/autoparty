@@ -1,6 +1,6 @@
 -- ==================== AUTO PARTY MODULE ====================
 -- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
--- Yêu cầu: WindUI, các biến global từ file chínhs
+-- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
 local Module = {}
@@ -729,21 +729,35 @@ local function startPartyMonitoring()
                                     targetJobId = world1Server.JobId
                                     saveSharedRejoinJobId(targetPlaceId, targetJobId)
                                     warn("✅ [STEP 3] LEADER đã tạo JobId:", targetJobId:sub(1,20))
-                                    task.wait(2) -- Đợi để file được ghi xong
+                                    warn("⏳ [STEP 3] LEADER đợi 5 giây để file được ghi xong...")
+                                    task.wait(5) -- Tăng lên 5 giây để đảm bảo file được ghi
                                 else
                                     warn("❌ [STEP 3] Không có World 1 JobId - Trigger scan")
                                     SharedJobIdSystem:ScanAllWorlds()
                                 end
                             else
                                 warn("👤 [STEP 3] MEMBER đợi LEADER tạo JobId...")
-                                -- Đợi 5 giây rồi reload lại
-                                task.wait(5)
-                                if reloadSharedRejoinJobId() then
-                                    targetPlaceId = PartyGlobals.SharedRejoinPlaceId
-                                    targetJobId = PartyGlobals.SharedRejoinJobId
-                                    warn("✅ [STEP 3] MEMBER đã nhận JobId từ LEADER:", targetJobId:sub(1,20))
-                                else
-                                    warn("❌ [STEP 3] MEMBER không nhận được JobId từ LEADER")
+                                -- Retry 3 lần, mỗi lần đợi 10 giây
+                                local retryCount = 0
+                                local maxRetries = 3
+                                
+                                while retryCount < maxRetries do
+                                    retryCount = retryCount + 1
+                                    warn("🔄 [STEP 3] MEMBER thử lần", retryCount, "/", maxRetries)
+                                    task.wait(10)
+                                    
+                                    if reloadSharedRejoinJobId() then
+                                        targetPlaceId = PartyGlobals.SharedRejoinPlaceId
+                                        targetJobId = PartyGlobals.SharedRejoinJobId
+                                        warn("✅ [STEP 3] MEMBER đã nhận JobId từ LEADER:", targetJobId:sub(1,20))
+                                        break
+                                    else
+                                        warn("⚠️ [STEP 3] MEMBER chưa nhận được JobId, retry...")
+                                    end
+                                end
+                                
+                                if not targetJobId then
+                                    warn("❌ [STEP 3] MEMBER không nhận được JobId sau", maxRetries, "lần thử")
                                 end
                             end
                         end
@@ -819,13 +833,27 @@ local function startPartyMonitoring()
                                 end
                             else
                                 warn("👤 MEMBER đợi LEADER tạo JobId...")
-                                task.wait(5)
-                                if reloadSharedRejoinJobId() then
-                                    targetPlaceId = PartyGlobals.SharedRejoinPlaceId
-                                    targetJobId = PartyGlobals.SharedRejoinJobId
-                                    warn("✅ MEMBER đã nhận JobId từ LEADER:", targetJobId:sub(1,20))
-                                else
-                                    warn("❌ MEMBER không nhận được JobId từ LEADER")
+                                -- Retry 2 lần, mỗi lần đợi 10 giây
+                                local retryCount = 0
+                                local maxRetries = 2
+                                
+                                while retryCount < maxRetries do
+                                    retryCount = retryCount + 1
+                                    warn("🔄 MEMBER thử lần", retryCount, "/", maxRetries)
+                                    task.wait(10)
+                                    
+                                    if reloadSharedRejoinJobId() then
+                                        targetPlaceId = PartyGlobals.SharedRejoinPlaceId
+                                        targetJobId = PartyGlobals.SharedRejoinJobId
+                                        warn("✅ MEMBER đã nhận JobId từ LEADER:", targetJobId:sub(1,20))
+                                        break
+                                    else
+                                        warn("⚠️ MEMBER chưa nhận được JobId, retry...")
+                                    end
+                                end
+                                
+                                if not targetJobId then
+                                    warn("❌ MEMBER không nhận được JobId sau", maxRetries, "lần thử")
                                     task.wait(10)
                                     break
                                 end
