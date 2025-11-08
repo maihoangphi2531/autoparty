@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luad
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luaddd
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -755,7 +755,7 @@ local function startPartyMonitoring()
     local lastRejoinTime = 0
     local lastJobIdCheckTime = 0
     
-    task.spawn(function()
+task.spawn(function()
         while Toggles.AutoPartyMonitor and Toggles.AutoPartyMonitor.Value do
             -- ✅ BƯỚC 1: KIỂM TRA ĐANG Ở WORLD NÀO
             if not isInWorld1() then
@@ -800,24 +800,8 @@ local function startPartyMonitoring()
                     end
                 end
                 
-                if targetJobId then
-                    -- ✅ KIỂM TRA ĐÃ Ở ĐÚNG JOBID CHƯA
-                    if game.JobId == targetJobId then
-                        warn("✅ Đã ở đúng JobId World 1, bỏ qua teleport")
-                    else
-                        warn("🌍 Teleport về World 1 JobId:", targetJobId)
-                        WindUI:Notify({
-                            Title = "Auto Party",
-                            Content = "🌍 Đang về World 1...",
-                            Duration = 5
-                        })
-                        task.wait(2)
-                        SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
-                        return
-                    end
-                else
-                    warn("❌ Không có JobId để teleport, đợi cycle tiếp theo")
-                end
+                
+                
             end
             
             -- ✅ KIỂM TRA JOBID CŨ MỖI 60 GIÂY (CHỈ KHI Ở WORLD 1)
