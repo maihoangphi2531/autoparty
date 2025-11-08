@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luada
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -54,9 +54,20 @@ local SharedJobIdSystem = {
     ScanInterval = 300,
     IsScanning = false,
     
-    -- ✅ CHỈ GIỮ LẠI WORLD 1
+    -- ✅ DANH SÁCH TẤT CẢ WORLDS VÀ KHU VỰC HỢP LỆ
     ValidWorlds = {
-        {PlaceId = 4310463616, Name = 'World 1'}
+        {PlaceId = 4310463616, Name = 'World 1'},
+        {PlaceId = 4310463940, Name = 'World 2'},
+        {PlaceId = 4465987684, Name = 'World 3'},
+        {PlaceId = 4646472003, Name = 'World 4'},
+        {PlaceId = 5703355191, Name = 'World 5'},
+        {PlaceId = 6075083204, Name = 'World 6'},
+        {PlaceId = 6847035264, Name = 'World 7'},
+        {PlaceId = 9944262922, Name = 'World 8'},
+        {PlaceId = 10651517727, Name = 'World 9'},
+        {PlaceId = 14914684761, Name = 'World 10'},
+        {PlaceId = 6510868181, Name = 'PvpArena'},
+        {PlaceId = 7499964980, Name = 'Marketplace'}
     }
 }
 
@@ -367,6 +378,17 @@ end
 -- ✅ KIỂM TRA CÓ ĐANG TRONG DUNGEON KHÔNG
 local function isInDungeon()
     return aC ~= nil
+end
+
+-- ✅ KIỂM TRA CÓ ĐANG Ở CÁC WORLD/PVP/MARKETPLACE HỢP LỆ KHÔNG
+local function isInValidWorld()
+    local currentPlaceId = game.PlaceId
+    for _, world in ipairs(SharedJobIdSystem.ValidWorlds) do
+        if world.PlaceId == currentPlaceId then
+            return true
+        end
+    end
+    return false
 end
 
 local function getMyPartyId()
@@ -757,9 +779,9 @@ local function startPartyMonitoring()
     
 task.spawn(function()
         while Toggles.AutoPartyMonitor and Toggles.AutoPartyMonitor.Value do
-            -- ✅ BƯỚC 1: KIỂM TRA ĐANG Ở WORLD NÀO
-            if not isInWorld1() then
-                warn("⚠️ Không ở World 1 (PlaceId:", game.PlaceId, ") → Chuẩn bị teleport về World 1")
+            -- ✅ BƯỚC 1: CHỈ KIỂM TRA TELEPORT KHI Ở CÁC WORLD HỢP LỆ (KHÔNG PHẢI DUNGEON)
+            if isInValidWorld() and not isInWorld1() then
+                warn("⚠️ Đang ở World/PvP/Marketplace khác (PlaceId:", game.PlaceId, ") → Chuẩn bị teleport về World 1")
                 
                 local targetPlaceId = 4310463616
                 local targetJobId
@@ -800,8 +822,24 @@ task.spawn(function()
                     end
                 end
                 
-                
-                
+                if targetJobId then
+                    -- ✅ KIỂM TRA ĐÃ Ở ĐÚNG JOBID CHƯA
+                    if game.JobId == targetJobId then
+                        warn("✅ Đã ở đúng JobId World 1, bỏ qua teleport")
+                    else
+                        warn("🌍 Teleport về World 1 JobId:", targetJobId)
+                        WindUI:Notify({
+                            Title = "Auto Party",
+                            Content = "🌍 Đang về World 1...",
+                            Duration = 5
+                        })
+                        task.wait(2)
+                        SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
+                        return
+                    end
+                else
+                    warn("❌ Không có JobId để teleport, đợi cycle tiếp theo")
+                end
             end
             
             -- ✅ KIỂM TRA JOBID CŨ MỖI 60 GIÂY (CHỈ KHI Ở WORLD 1)
@@ -877,64 +915,7 @@ task.spawn(function()
                     end
                 end
                 
-                -- ✅ NẾU ĐANG TRONG DUNGEON + THIẼU NGƯỜI → QUAY VỀ WORLD 1
-                if isInDungeon() and (onlineMissingCount > 0 or offlineMissingCount > 0) then
-                    warn("⚠️ Đang trong dungeon nhưng thiếu người → Quay về World 1")
-                    
-                    -- Lưu dungeon hiện tại
-                    saveDungeonJobId()
-                    
-                    -- Rejoin về World 1
-                    local targetPlaceId = 4310463616
-                    local targetJobId
-                    
-                    -- Reload JobId để đồng bộ
-                    reloadSharedRejoinJobId()
-                    task.wait(0.5)
-                    
-                    if PartyGlobals.SharedRejoinJobId then
-                        targetJobId = PartyGlobals.SharedRejoinJobId
-                        warn("✅ Sử dụng Shared JobId:", targetJobId:sub(1,20))
-                    else
-                        if isLeader() then
-                            warn("👑 LEADER tạo World 1 JobId...")
-                            local world1Server = SharedJobIdSystem:GetWorld1JobId()
-                            if world1Server then
-                                targetJobId = world1Server.JobId
-                                saveSharedRejoinJobId(targetPlaceId, targetJobId)
-                                task.wait(3)
-                            end
-                        else
-                            warn("👤 MEMBER đợi LEADER...")
-                            for retry = 1, 5 do
-                                task.wait(8)
-                                if reloadSharedRejoinJobId() then
-                                    targetJobId = PartyGlobals.SharedRejoinJobId
-                                    break
-                                end
-                            end
-                        end
-                    end
-                    
-                    if targetJobId then
-                        -- ✅ KIỂM TRA ĐÃ Ở ĐÚNG JOBID CHƯA
-                        if game.JobId == targetJobId then
-                            warn("✅ Đã ở đúng server JobId, không cần rejoin")
-                        else
-                            warn("🔄 Rejoin về World 1 để mời member...")
-                            WindUI:Notify({
-                                Title = "Gathering Party",
-                                Content = "🔄 Quay về World 1 để mời đủ thành viên...",
-                                Duration = 5
-                            })
-                            task.wait(2)
-                            SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
-                            return
-                        end
-                    end
-                end
-                
-                -- ✅ NẾU CÓ NGƯỜI OFFLINE (DISCONNECT) → REJOIN NGAY
+                -- ✅ NẾU CÓ NGƯỜI OFFLINE (DISCONNECT) → REJOIN NGAY (KỂ CẢ KHI ĐANG TRONG DUNGEON)
                 if offlineMissingCount > 0 then
                     warn("🔴 Phát hiện", offlineMissingCount, "người disconnect → Chuẩn bị rejoin")
                     
