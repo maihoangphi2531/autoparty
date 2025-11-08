@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luad
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -20,8 +20,35 @@ local cc = _G.WorldsList
 local ToggleStates = _G.ToggleStates
 local Toggles = _G.Toggles
 local ConfigSystem = _G.ConfigSystem
+local a5 = game:GetService("ReplicatedStorage"):WaitForChild('Shared')
+
+-- ✅ PERSISTENT DATA (GIỐNG anya.lua) - ĐỂ ĐỒNG BỘ VỚI HỆ THỐNG REJOIN CŨ
+local ao = {
+    PartyRejoinDungeon = false,     -- Flag để party rejoin dungeon
+    PartyDungeonJobId = nil,        -- JobId dungeon để rejoin
+    PartyDungeonPlaceId = nil,      -- PlaceId dungeon
+    PartyTimestamp = 0,             -- Timestamp lưu
+    PartyThreshold = 600            -- 10 phút timeout
+}
+local partyDataFile = d .. '_PartyDungeonData.txt'
 
 -- ==================== GLOBALS ====================
+-- ✅ HÀM SAVE/LOAD PARTY DUNGEON DATA
+local function savePartyData()
+    if not writefile then return end
+    pcall(function()
+        writefile(partyDataFile, e:JSONEncode(ao))
+    end)
+end
+
+local function loadPartyData()
+    if not (readfile and isfile and isfile(partyDataFile)) then return false end
+    local success = pcall(function()
+        ao = e:JSONDecode(readfile(partyDataFile))
+    end)
+    return success
+end
+
 local PartyGlobals = {
     PartySetup = { Leader = "", Members = {"", "", "", "", ""} },
     isMonitoringParty = false,
@@ -33,9 +60,8 @@ local PartyGlobals = {
     -- ✅ THÊM: Lưu JobId chung cho cả team
     SharedRejoinJobId = nil,
     SharedRejoinPlaceId = nil,
-    SharedRejoinFile = 'AnyaHub_PartySharedRejoin.txt', -- ✅ FILE CỐ ĐỊNH CHO TẤT CẢ INSTANCES
-    DungeonRejoinFile = 'AnyaHub_DungeonRejoin.txt', -- ✅ LƯU JOBID DUNGEON ĐỂ QUAY LẠI
-    -- ✅ THÊM: Độ trễ kiểm tra party (có thể config)
+    SharedRejoinFile = 'AnyaHub_PartySharedRejoin.txt',
+    DungeonRejoinFile = 'AnyaHub_DungeonRejoin.txt',
     PartyCheckDelay = 10,
     LastDungeonJobId = nil,
     LastDungeonPlaceId = nil
@@ -751,8 +777,7 @@ local function isJobIdStillValid(jobId)
     return isValid
 end
 
--- ✅ SỬA LẠI PARTY MONITORING
--- ✅ SỬA LẠI PARTY MONITORING VỚI DELAY TÙY CHỈNH
+-- ✅ SỬA LẠI PARTY MONITORING - TÍCH HỢP VỚI REJOIN DUNGEON
 local function startPartyMonitoring()
     if PartyGlobals.isMonitoringParty then 
         warn("⚠️ Party monitoring already active")
@@ -762,14 +787,23 @@ local function startPartyMonitoring()
     PartyGlobals.isMonitoringParty = true
     warn("✅ Started party monitoring")
     
+    -- ✅ Load party data từ file
+    loadPartyData()
+    
     -- ✅ Load JobId cũ nếu có
     local savedRejoin = loadSharedRejoinJobId()
     if savedRejoin then
         warn("📂 Đã load Shared Rejoin JobId:", savedRejoin.JobId)
     end
     
+    -- ✅ NẾU ĐANG TRONG DUNGEON → LƯU JOBID
     if aC then
-        warn("🔍 Đang trong dungeon - Trigger scan JobId...")
+        warn("🔍 Đang trong dungeon - Lưu JobId và trigger scan...")
+        ao.PartyRejoinDungeon = true
+        ao.PartyDungeonJobId = game.JobId
+        ao.PartyDungeonPlaceId = game.PlaceId
+        ao.PartyTimestamp = tick()
+        savePartyData()
         SharedJobIdSystem:ScanAllWorlds()
     end
     
@@ -1021,6 +1055,17 @@ task.spawn(function()
                 if offlineMissingCount > 0 then
                     warn("🔴 Phát hiện", offlineMissingCount, "người disconnect → Chuẩn bị rejoin")
                     
+                    -- ✅ NẾU ĐANG TRONG DUNGEON → LƯU STATE ĐỂ REJOIN SAU
+                    if aC then
+                        warn("🏰 Đang trong dungeon → Lưu state để rejoin sau khi đủ người")
+                        ao.PartyRejoinDungeon = true
+                        ao.PartyDungeonJobId = game.JobId
+                        ao.PartyDungeonPlaceId = game.PlaceId
+                        ao.PartyTimestamp = tick()
+                        savePartyData()
+                        warn("💾 Đã lưu: PlaceId=", ao.PartyDungeonPlaceId, "JobId=", ao.PartyDungeonJobId:sub(1,20))
+                    end
+                    
                     -- Đợi 5 giây để chắc chắn họ thực sự disconnect
                     task.wait(5)
                     
@@ -1033,7 +1078,7 @@ task.spawn(function()
                     end
                     
                     if stillOffline > 0 then
-                        warn("🔄 Xác nhận disconnect → Rejoin về World 1")
+                        warn("🔄 Xác nhận disconnect → Rejoin về World 1 để đón member")
                         
                         local targetPlaceId, targetJobId
                         
@@ -1193,6 +1238,64 @@ task.spawn(function()
                     end
                     
                     rejoinAttempts = 0
+                    
+                    -- ✅ KIỂM TRA SAU KHI MỜI/ACCEPT: NẾU PARTY ĐÃ ĐỦ + TẤT CẢ ONLINE → RESTART DUNGEON
+                    task.wait(5) -- Đợi invite/accept hoàn tất
+                    
+                    local currentCountAfter = getCurrentPartyMemberCount()
+                    local expectedTotal = getExpectedPartySize()
+                    local allOnlineAfter = areAllMembersOnline()
+                    
+                    if currentCountAfter >= expectedTotal and allOnlineAfter then
+                        -- ✅ Reload party data để đồng bộ
+                        loadPartyData()
+                        
+                        if ao.PartyRejoinDungeon and ao.PartyDungeonJobId then
+                            local timeDiff = tick() - ao.PartyTimestamp
+                            
+                            if timeDiff <= ao.PartyThreshold then
+                                warn("🎯 Party đủ + Online + Có dungeon saved → Restart dungeon!")
+                                
+                                WindUI:Notify({
+                                    Title = "Party Ready",
+                                    Content = "🎯 Đủ người! Restart dungeon sau 10 giây...",
+                                    Duration = 10
+                                })
+                                
+                                -- ✅ ĐỒNG BỘ: TẤT CẢ DÙNG StartRaid THAY VÌ TELEPORT
+                                task.wait(10)
+                                
+                                warn("🏰 Restart dungeon via StartRaid")
+                                
+                                -- ✅ SỬ DỤNG StartRaid GIỐNG anya.lua
+                                pcall(function()
+                                    local StartRaid = a5:WaitForChild('Teleport'):WaitForChild('StartRaid')
+                                    
+                                    -- Lấy dungeonId và difficulty từ PlaceId
+                                    local dungeonId = ay -- Dùng biến global
+                                    local difficulty = az -- Dùng biến global
+                                    
+                                    warn("🔄 StartRaid - DungeonId:", dungeonId, "Difficulty:", difficulty)
+                                    
+                                    if dungeonId and difficulty then
+                                        StartRaid:FireServer(dungeonId, difficulty)
+                                    end
+                                end)
+                                
+                                -- Reset state
+                                ao.PartyRejoinDungeon = false
+                                ao.PartyDungeonJobId = nil
+                                ao.PartyDungeonPlaceId = nil
+                                savePartyData()
+                                
+                                return
+                            else
+                                warn("⚠️ Dungeon JobId quá cũ (>10 phút), bỏ qua")
+                                ao.PartyRejoinDungeon = false
+                                savePartyData()
+                            end
+                        end
+                    end
                 end
                 
                 -- ✅ NẾU CÓ NGƯỜI ONLINE NHƯNG KHÁC SERVER HOẶC KHÔNG PHẢI WORLD 1
