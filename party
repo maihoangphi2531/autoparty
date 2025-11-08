@@ -1,6 +1,6 @@
 -- ==================== AUTO PARTY MODULE ====================
 -- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
--- Yêu cầu: WindUI, các biến global từ file chínhs
+-- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
 local Module = {}
@@ -773,33 +773,6 @@ local function startPartyMonitoring()
                 end
             else
                 warn("⚠️ Party thiếu", expectedTotal - onlineCount, "người (dựa trên online count)")
-                
-                -- ✅ KIỂM TRA NẾU CÓ NGƯỜI TRONG PARTY NHƯNG KHÔNG ONLINE → KICK
-                if currentCount > onlineCount then
-                    warn("⚠️ Phát hiện", currentCount - onlineCount, "người trong party nhưng không online!")
-                    
-                    -- Nếu là leader, thử kick người không online
-                    if isLeader() then
-                        pcall(function()
-                            local Parties = game:GetService("ReplicatedStorage"):FindFirstChild("Parties")
-                            if Parties then
-                                local partyId = getMyPartyId()
-                                if partyId then
-                                    local myParty = Parties:FindFirstChild(partyId)
-                                    if myParty and myParty:FindFirstChild("Members") then
-                                        for _, memberFolder in ipairs(myParty.Members:GetChildren()) do
-                                            if not game:GetService("Players"):FindFirstChild(memberFolder.Name) then
-                                                warn("🚫 Kick người không online:", memberFolder.Name)
-                                                game:GetService("ReplicatedStorage").Shared.Party.Kick:FireServer(memberFolder.Name)
-                                                task.wait(0.5)
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end)
-                    end
-                end
                 
                 local missingMembers = getMissingMembers()
                 local onlineMissingCount = 0
