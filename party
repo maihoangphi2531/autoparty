@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luaffff
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -81,7 +81,7 @@ function SharedJobIdSystem:GetRequestFunction()
 end
 
 function SharedJobIdSystem:ScanPlaceJobIds(placeId, maxServers)
-    maxServers = maxServers or 100 -- ✅ TĂNG LÊN ĐỂ SCAN NHIỀU HƠN
+    maxServers = maxServers or 100
     local requestFunc = self:GetRequestFunction()
     
     if not requestFunc then
@@ -91,7 +91,8 @@ function SharedJobIdSystem:ScanPlaceJobIds(placeId, maxServers)
     
     local jobIds = {}
     local cursor = nil
-    local scanned = 0
+    local totalScanned = 0 -- ✅ Đếm tổng số servers đã quét (kể cả servers đầy)
+    local foundCount = 0 -- ✅ Đếm số servers có chỗ trống
     
     pcall(function()
         repeat
@@ -108,35 +109,36 @@ function SharedJobIdSystem:ScanPlaceJobIds(placeId, maxServers)
                 
                 if data and data.data then
                     for _, server in ipairs(data.data) do
-                        if server.playing < server.maxPlayers then
-                            table.insert(jobIds, {
-                                JobId = server.id,
-                                Players = server.playing,
-                                MaxPlayers = server.maxPlayers
-                            })
-                            scanned = scanned + 1
-                            
-                            -- ✅ LOG RA ĐỂ DEBUG
-                            warn(string.format("Found server: %s | Players: %d/%d", 
-                                server.id:sub(1, 20), server.playing, server.maxPlayers))
-                            
-                            if scanned >= maxServers then
-                                break
-                            end
+                        totalScanned = totalScanned + 1
+                        
+                        -- ✅ LƯU TẤT CẢ SERVERS (KỂ CẢ SERVERS ĐẦY)
+                        table.insert(jobIds, {
+                            JobId = server.id,
+                            Players = server.playing,
+                            MaxPlayers = server.maxPlayers
+                        })
+                        foundCount = foundCount + 1
+                        
+                        -- ✅ DỪNG KHI ĐỦ SỐ LƯỢNG CẦN TÌM
+                        if foundCount >= maxServers then
+                            warn("✅ Đã tìm đủ", maxServers, "servers, dừng scan")
+                            cursor = nil
+                            break
                         end
                     end
                 end
                 
                 cursor = data.nextPageCursor
             else
+                warn("❌ Không nhận được response từ Roblox API")
                 break
             end
             
-            task.wait(0.5)
-        until not cursor or scanned >= maxServers
+            task.wait(0.1) -- ✅ Giảm delay xuống 0.1s để nhanh hơn
+        until not cursor
     end)
     
-    warn("✅ Tổng cộng tìm thấy", #jobIds, "servers")
+    warn("✅ Tổng cộng tìm thấy", #jobIds, "servers (Quét:", totalScanned, "servers)")
     return jobIds
 end
 function SharedJobIdSystem:ScanAllWorlds()
