@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luaddd
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -787,14 +787,14 @@ task.spawn(function()
                         end
                     else
                         warn("👤 MEMBER đợi LEADER tạo JobId...")
-                        for retry = 1, 5 do
+                        for retry = 1, 60 do
                             task.wait(8)
                             if reloadSharedRejoinJobId() then
                                 targetJobId = PartyGlobals.SharedRejoinJobId
                                 warn("✅ MEMBER đã nhận JobId từ LEADER:", targetJobId)
                                 break
                             else
-                                warn("⚠️ MEMBER chưa nhận được JobId (Thử lần", retry, "/5)")
+                                warn("⚠️ MEMBER chưa nhận được JobId (Thử lần", retry, "/60)")
                             end
                         end
                     end
