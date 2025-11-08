@@ -1,6 +1,6 @@
 -- ==================== AUTO PARTY MODULE ====================
 -- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
--- Yêu cầu: WindUI, các biến global từ file chính
+-- Yêu cầu: WindUI, các biến global từ file chínhs
 -- ===========================================================
 
 local Module = {}
@@ -741,21 +741,24 @@ local function startPartyMonitoring()
                 end
             end
             
-            -- ✅ ĐẾM CHÍNH XÁC
+            -- ✅ ĐẾM CHÍNH XÁC - DÙNG ONLINE COUNT THAY VÌ PARTY COUNT
             local expectedTotal = getExpectedPartySize()
             local currentCount = getCurrentPartyMemberCount()
+            local onlineCount = getOnlineMembersCount()
+            local allOnline = areAllMembersOnline()
             
-            warn("📊 Party Status: ", currentCount, "/", expectedTotal)
+            warn("📊 Party Status: ", currentCount, "/", expectedTotal, "(Online:", onlineCount, "/", expectedTotal, ")")
             
-            if currentCount >= expectedTotal then
-                warn("✅ Party đã đủ", expectedTotal, "người!")
+            -- ✅ CHỈ COI NHƯ ĐỦ KHI: CẢ PARTY COUNT VÀ ONLINE COUNT ĐỀU ĐỦ
+            if currentCount >= expectedTotal and allOnline then
+                warn("✅ Party đã đủ", expectedTotal, "người và tất cả đều online!")
                 rejoinAttempts = 0
                 
-                -- ✅ NẾU ĐANG Ở WORLD 1 + CÓ DUNGEON ĐÃ LƯU → QUAY LẠI DUNGEON
-                if isInWorld1() then
+                -- ✅ NẾU ĐANG Ở WORLD 1 + CÓ DUNGEON ĐÃ LƯU + TẤT CẢ ĐỀU ONLINE → QUAY LẠI DUNGEON
+                if isInWorld1() and allOnline then
                     local dungeonData = loadDungeonJobId()
                     if dungeonData and dungeonData.JobId then
-                        warn("🎯 Party đủ người + Có dungeon đã lưu → Quay lại dungeon")
+                        warn("🎯 Party đủ người + Tất cả online + Có dungeon → Quay lại dungeon")
                         
                         WindUI:Notify({
                             Title = "Party Ready",
@@ -769,7 +772,34 @@ local function startPartyMonitoring()
                     end
                 end
             else
-                warn("⚠️ Party thiếu", expectedTotal - currentCount, "người")
+                warn("⚠️ Party thiếu", expectedTotal - onlineCount, "người (dựa trên online count)")
+                
+                -- ✅ KIỂM TRA NẾU CÓ NGƯỜI TRONG PARTY NHƯNG KHÔNG ONLINE → KICK
+                if currentCount > onlineCount then
+                    warn("⚠️ Phát hiện", currentCount - onlineCount, "người trong party nhưng không online!")
+                    
+                    -- Nếu là leader, thử kick người không online
+                    if isLeader() then
+                        pcall(function()
+                            local Parties = game:GetService("ReplicatedStorage"):FindFirstChild("Parties")
+                            if Parties then
+                                local partyId = getMyPartyId()
+                                if partyId then
+                                    local myParty = Parties:FindFirstChild(partyId)
+                                    if myParty and myParty:FindFirstChild("Members") then
+                                        for _, memberFolder in ipairs(myParty.Members:GetChildren()) do
+                                            if not game:GetService("Players"):FindFirstChild(memberFolder.Name) then
+                                                warn("🚫 Kick người không online:", memberFolder.Name)
+                                                game:GetService("ReplicatedStorage").Shared.Party.Kick:FireServer(memberFolder.Name)
+                                                task.wait(0.5)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                end
                 
                 local missingMembers = getMissingMembers()
                 local onlineMissingCount = 0
