@@ -1,6 +1,6 @@
 -- ==================== AUTO PARTY MODULE ====================
 -- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
--- Yêu cầu: WindUI, các biến global từ file chính
+-- Yêu cầu: WindUI, các biến global từ file chínha
 -- ===========================================================
 
 local Module = {}
@@ -713,7 +713,63 @@ local function startPartyMonitoring()
     
     task.spawn(function()
         while Toggles.AutoPartyMonitor and Toggles.AutoPartyMonitor.Value do
-            -- ✅ KIỂM TRA JOBID CŨ MỖI 60 GIÂY
+            -- ✅ BƯỚC 1: KIỂM TRA ĐANG Ở WORLD NÀO
+            if not isInWorld1() then
+                warn("⚠️ Không ở World 1 (PlaceId:", game.PlaceId, ") → Chuẩn bị teleport về World 1")
+                
+                local targetPlaceId = 4310463616
+                local targetJobId
+                
+                -- Reload JobId để đồng bộ
+                reloadSharedRejoinJobId()
+                task.wait(0.5)
+                
+                if PartyGlobals.SharedRejoinJobId then
+                    targetJobId = PartyGlobals.SharedRejoinJobId
+                    warn("✅ Sử dụng Shared JobId:", targetJobId:sub(1,20))
+                else
+                    if isLeader() then
+                        warn("👑 LEADER tạo World 1 JobId...")
+                        local world1Server = SharedJobIdSystem:GetWorld1JobId()
+                        if world1Server then
+                            targetJobId = world1Server.JobId
+                            saveSharedRejoinJobId(targetPlaceId, targetJobId)
+                            warn("✅ LEADER đã tạo JobId:", targetJobId:sub(1,20))
+                            task.wait(3)
+                        else
+                            warn("❌ Không có World 1 JobId - Trigger scan")
+                            SharedJobIdSystem:ScanAllWorlds()
+                            task.wait(10)
+                        end
+                    else
+                        warn("👤 MEMBER đợi LEADER tạo JobId...")
+                        for retry = 1, 5 do
+                            task.wait(8)
+                            if reloadSharedRejoinJobId() then
+                                targetJobId = PartyGlobals.SharedRejoinJobId
+                                warn("✅ MEMBER đã nhận JobId từ LEADER:", targetJobId:sub(1,20))
+                                break
+                            else
+                                warn("⚠️ MEMBER chưa nhận được JobId (Thử lần", retry, "/5)")
+                            end
+                        end
+                    end
+                end
+                
+                if targetJobId then
+                    warn("🌍 Teleport về World 1...")
+                    WindUI:Notify({
+                        Title = "Auto Party",
+                        Content = "🌍 Đang về World 1...",
+                        Duration = 5
+                    })
+                    task.wait(2)
+                    SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
+                    return
+                end
+            end
+            
+            -- ✅ KIỂM TRA JOBID CŨ MỖI 60 GIÂY (CHỈ KHI Ở WORLD 1)
             local currentTime = tick()
             if currentTime - lastJobIdCheckTime >= 60 then
                 lastJobIdCheckTime = currentTime
@@ -826,15 +882,20 @@ local function startPartyMonitoring()
                     end
                     
                     if targetJobId then
-                        warn("🔄 Rejoin về World 1 để mời member...")
-                        WindUI:Notify({
-                            Title = "Gathering Party",
-                            Content = "🔄 Quay về World 1 để mời đủ thành viên...",
-                            Duration = 5
-                        })
-                        task.wait(2)
-                        SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
-                        return
+                        -- ✅ KIỂM TRA ĐÃ Ở ĐÚNG JOBID CHƯA
+                        if game.JobId == targetJobId then
+                            warn("✅ Đã ở đúng server JobId, không cần rejoin")
+                        else
+                            warn("🔄 Rejoin về World 1 để mời member...")
+                            WindUI:Notify({
+                                Title = "Gathering Party",
+                                Content = "🔄 Quay về World 1 để mời đủ thành viên...",
+                                Duration = 5
+                            })
+                            task.wait(2)
+                            SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
+                            return
+                        end
                     end
                 end
                 
@@ -946,25 +1007,30 @@ local function startPartyMonitoring()
                         end
                         
                         if targetPlaceId and targetJobId then
-                            warn("🎲 Rejoin về: World 1 - JobId:", targetJobId)
-                            
-                            if isLeader() then
-                                WindUI:Notify({
-                                    Title = "Member Disconnected",
-                                    Content = "🔄 Rejoin về World 1 để đợi member...",
-                                    Duration = 5
-                                })
+                            -- ✅ KIỂM TRA ĐÃ Ở ĐÚNG JOBID CHƯA
+                            if game.JobId == targetJobId and game.PlaceId == targetPlaceId then
+                                warn("✅ Đã ở đúng server (PlaceId:", targetPlaceId, "JobId:", targetJobId:sub(1,20), "), không cần rejoin")
                             else
-                                WindUI:Notify({
-                                    Title = "Rejoining",
-                                    Content = "🔄 Rejoin về World 1...",
-                                    Duration = 5
-                                })
+                                warn("🎲 Rejoin về: World 1 - JobId:", targetJobId)
+                                
+                                if isLeader() then
+                                    WindUI:Notify({
+                                        Title = "Member Disconnected",
+                                        Content = "🔄 Rejoin về World 1 để đợi member...",
+                                        Duration = 5
+                                    })
+                                else
+                                    WindUI:Notify({
+                                        Title = "Rejoining",
+                                        Content = "🔄 Rejoin về World 1...",
+                                        Duration = 5
+                                    })
+                                end
+                                
+                                task.wait(2)
+                                SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
+                                return
                             end
-                            
-                            task.wait(2)
-                            SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
-                            return
                         end
                     end
                 end
@@ -1069,17 +1135,23 @@ local function startPartyMonitoring()
                         end
                         
                         if targetPlaceId and targetJobId then
-                            warn("🎲 Rejoin về: World 1")
-                            
-                            WindUI:Notify({
-                                Title = "Gathering Party",
-                                Content = "🔄 Rejoin về World 1...",
-                                Duration = 5
-                            })
-                            
-                            task.wait(2)
-                            SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
-                            return
+                            -- ✅ KIỂM TRA ĐÃ Ở ĐÚNG JOBID CHƯA
+                            if game.JobId == targetJobId and game.PlaceId == targetPlaceId then
+                                warn("✅ Đã ở đúng server, không cần rejoin")
+                                rejoinAttempts = 0 -- Reset rejoin attempts
+                            else
+                                warn("🎲 Rejoin về: World 1")
+                                
+                                WindUI:Notify({
+                                    Title = "Gathering Party",
+                                    Content = "🔄 Rejoin về World 1...",
+                                    Duration = 5
+                                })
+                                
+                                task.wait(2)
+                                SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
+                                return
+                            end
                         end
                     end
                 end
