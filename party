@@ -1,6 +1,6 @@
 -- ==================== AUTO PARTY MODULE ====================
 -- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
--- Yêu cầu: WindUI, các biến global từ file chínha
+-- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
 local Module = {}
@@ -726,7 +726,7 @@ local function startPartyMonitoring()
                 
                 if PartyGlobals.SharedRejoinJobId then
                     targetJobId = PartyGlobals.SharedRejoinJobId
-                    warn("✅ Sử dụng Shared JobId:", targetJobId:sub(1,20))
+                    warn("✅ Sử dụng Shared JobId:", targetJobId)
                 else
                     if isLeader() then
                         warn("👑 LEADER tạo World 1 JobId...")
@@ -734,7 +734,7 @@ local function startPartyMonitoring()
                         if world1Server then
                             targetJobId = world1Server.JobId
                             saveSharedRejoinJobId(targetPlaceId, targetJobId)
-                            warn("✅ LEADER đã tạo JobId:", targetJobId:sub(1,20))
+                            warn("✅ LEADER đã tạo JobId:", targetJobId)
                             task.wait(3)
                         else
                             warn("❌ Không có World 1 JobId - Trigger scan")
@@ -747,7 +747,7 @@ local function startPartyMonitoring()
                             task.wait(8)
                             if reloadSharedRejoinJobId() then
                                 targetJobId = PartyGlobals.SharedRejoinJobId
-                                warn("✅ MEMBER đã nhận JobId từ LEADER:", targetJobId:sub(1,20))
+                                warn("✅ MEMBER đã nhận JobId từ LEADER:", targetJobId)
                                 break
                             else
                                 warn("⚠️ MEMBER chưa nhận được JobId (Thử lần", retry, "/5)")
@@ -757,15 +757,22 @@ local function startPartyMonitoring()
                 end
                 
                 if targetJobId then
-                    warn("🌍 Teleport về World 1...")
-                    WindUI:Notify({
-                        Title = "Auto Party",
-                        Content = "🌍 Đang về World 1...",
-                        Duration = 5
-                    })
-                    task.wait(2)
-                    SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
-                    return
+                    -- ✅ KIỂM TRA ĐÃ Ở ĐÚNG JOBID CHƯA
+                    if game.JobId == targetJobId then
+                        warn("✅ Đã ở đúng JobId World 1, bỏ qua teleport")
+                    else
+                        warn("🌍 Teleport về World 1 JobId:", targetJobId)
+                        WindUI:Notify({
+                            Title = "Auto Party",
+                            Content = "🌍 Đang về World 1...",
+                            Duration = 5
+                        })
+                        task.wait(2)
+                        SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
+                        return
+                    end
+                else
+                    warn("❌ Không có JobId để teleport, đợi cycle tiếp theo")
                 end
             end
             
