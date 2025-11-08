@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luada
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -791,9 +791,18 @@ task.spawn(function()
                 task.wait(0.5)
                 
                 if PartyGlobals.SharedRejoinJobId then
-                    targetJobId = PartyGlobals.SharedRejoinJobId
-                    warn("✅ Sử dụng Shared JobId:", targetJobId)
-                else
+                    -- ✅ KIỂM TRA JOBID CÓ CÒN HỢP LỆ KHÔNG
+                    if isJobIdStillValid(PartyGlobals.SharedRejoinJobId) then
+                        targetJobId = PartyGlobals.SharedRejoinJobId
+                        warn("✅ Sử dụng Shared JobId:", targetJobId)
+                    else
+                        warn("⚠️ Shared JobId không còn hợp lệ, cần tạo mới")
+                        PartyGlobals.SharedRejoinJobId = nil
+                        PartyGlobals.SharedRejoinPlaceId = nil
+                    end
+                end
+                
+                if not targetJobId then
                     if isLeader() then
                         warn("👑 LEADER tạo World 1 JobId...")
                         local world1Server = SharedJobIdSystem:GetWorld1JobId()
