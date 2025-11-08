@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luaddd
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -149,27 +149,25 @@ function SharedJobIdSystem:ScanAllWorlds()
     warn("🔍 Bắt đầu scan JobId World 1...")
     
     task.spawn(function()
-        for _, world in ipairs(self.ValidWorlds) do
-            pcall(function()
-                warn("📡 Scanning", world.Name, "...")
-                
-                -- ✅ TĂNG SỐ LƯỢNG SERVER SCAN
-                local jobIds = self:ScanPlaceJobIds(world.PlaceId, 50)
-                
-                if #jobIds > 0 then
-                    self.WorldJobIdCache[world.PlaceId] = {
-                        Name = world.Name,
-                        JobIds = jobIds,
-                        LastUpdate = tick()
-                    }
-                    warn("✅", world.Name, "- Tìm thấy", #jobIds, "servers")
-                else
-                    warn("⚠️", world.Name, "- Không tìm thấy server phù hợp")
-                end
-                
-                task.wait(1)
-            end)
-        end
+        -- ✅ CHỈ SCAN WORLD 1 THÔI
+        local world1PlaceId = 4310463616
+        
+        pcall(function()
+            warn("📡 Scanning World 1...")
+            
+            local jobIds = self:ScanPlaceJobIds(world1PlaceId, 50)
+            
+            if #jobIds > 0 then
+                self.WorldJobIdCache[world1PlaceId] = {
+                    Name = "World 1",
+                    JobIds = jobIds,
+                    LastUpdate = tick()
+                }
+                warn("✅ World 1 - Tìm thấy", #jobIds, "servers")
+            else
+                warn("⚠️ World 1 - Không tìm thấy server phù hợp")
+            end
+        end)
         
         self.LastScanTime = tick()
         self.IsScanning = false
