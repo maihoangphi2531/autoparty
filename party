@@ -1069,6 +1069,23 @@ task.spawn(function()
                 if onlineMissingCount > 0 and isInWorld1() then
                     warn("👥 Người online và cùng server (World 1) → Mời/Accept")
                     
+                    -- ✅ MEMBER: Kiểm tra có đang ở party sai không → Rời party
+                    if not isLeader() then
+                        local myPartyId = getMyPartyId()
+                        if myPartyId then
+                            -- Kiểm tra leader có trong party này không
+                            local leaderName = PartyGlobals.PartySetup.Leader
+                            if not isInParty(leaderName) then
+                                warn("⚠️ Đang ở party khác, không có leader → Rời party")
+                                pcall(function()
+                                    game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Party"):WaitForChild("LeaveParty"):InvokeServer()
+                                    warn("✅ Đã rời party sai")
+                                    task.wait(1)
+                                end)
+                            end
+                        end
+                    end
+                    
                     -- Leader mời members
                     if isLeader() then
                         for _, memberName in ipairs(missingMembers) do
