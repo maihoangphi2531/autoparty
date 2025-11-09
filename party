@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luachominh
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -27,10 +27,13 @@ local ao = {
     PartyRejoinDungeon = false,     -- Flag để party rejoin dungeon
     PartyDungeonJobId = nil,        -- JobId dungeon để rejoin
     PartyDungeonPlaceId = nil,      -- PlaceId dungeon
+    PartyDungeonId = nil,           -- ✅ THÊM: DungeonId để StartRaid
+    PartyDifficulty = nil,          -- ✅ THÊM: Difficulty để StartRaid
     PartyTimestamp = 0,             -- Timestamp lưu
     PartyThreshold = 600            -- 10 phút timeout
 }
-local partyDataFile = d .. '_PartyDungeonData.txt'
+-- ✅ ĐỔI: FILE CHUNG CHO CẢ PARTY (KHÔNG DÙNG UserId)
+local partyDataFile = 'AnyaHub_PartyDungeonData.txt'
 
 -- ==================== GLOBALS ====================
 -- ✅ HÀM SAVE/LOAD PARTY DUNGEON DATA
@@ -796,14 +799,17 @@ local function startPartyMonitoring()
         warn("📂 Đã load Shared Rejoin JobId:", savedRejoin.JobId)
     end
     
-    -- ✅ NẾU ĐANG TRONG DUNGEON → LƯU JOBID
+    -- ✅ NẾU ĐANG TRONG DUNGEON → LƯU JOBID + DUNGEONID + DIFFICULTY
     if aC then
-        warn("🔍 Đang trong dungeon - Lưu JobId và trigger scan...")
+        warn("🔍 Đang trong dungeon - Lưu thông tin đầy đủ...")
         ao.PartyRejoinDungeon = true
         ao.PartyDungeonJobId = game.JobId
         ao.PartyDungeonPlaceId = game.PlaceId
+        ao.PartyDungeonId = ay  -- ✅ Lưu dungeonId
+        ao.PartyDifficulty = az -- ✅ Lưu difficulty
         ao.PartyTimestamp = tick()
         savePartyData()
+        warn("💾 Đã lưu: DungeonId=", ay, "Difficulty=", az)
         SharedJobIdSystem:ScanAllWorlds()
     end
     
@@ -1061,9 +1067,11 @@ task.spawn(function()
                         ao.PartyRejoinDungeon = true
                         ao.PartyDungeonJobId = game.JobId
                         ao.PartyDungeonPlaceId = game.PlaceId
+                        ao.PartyDungeonId = ay  -- ✅ Lưu dungeonId
+                        ao.PartyDifficulty = az -- ✅ Lưu difficulty
                         ao.PartyTimestamp = tick()
                         savePartyData()
-                        warn("💾 Đã lưu: PlaceId=", ao.PartyDungeonPlaceId, "JobId=", ao.PartyDungeonJobId:sub(1,20))
+                        warn("💾 Đã lưu: DungeonId=", ay, "Difficulty=", az, "JobId=", game.JobId:sub(1,20))
                     end
                     
                     -- Đợi 5 giây để chắc chắn họ thực sự disconnect
@@ -1262,31 +1270,51 @@ task.spawn(function()
                                     Duration = 10
                                 })
                                 
-                                -- ✅ ĐỒNG BỘ: TẤT CẢ DÙNG StartRaid THAY VÌ TELEPORT
+                                -- ✅ CHỈ LEADER MỚI ĐƯỢC GỌI StartRaid
                                 task.wait(10)
                                 
-                                warn("🏰 Restart dungeon via StartRaid")
-                                
-                                -- ✅ SỬ DỤNG StartRaid GIỐNG anya.lua
-                                pcall(function()
-                                    local StartRaid = a5:WaitForChild('Teleport'):WaitForChild('StartRaid')
+                                if isLeader() then
+                                    warn("👑 LEADER đang restart dungeon via StartRaid")
                                     
-                                    -- Lấy dungeonId và difficulty từ PlaceId
-                                    local dungeonId = ay -- Dùng biến global
-                                    local difficulty = az -- Dùng biến global
+                                    -- ✅ SỬ DỤNG StartRaid VỚI DUNGEONID VÀ DIFFICULTY ĐÃ LƯU
+                                    pcall(function()
+                                        local StartRaid = a5:WaitForChild('Teleport'):WaitForChild('StartRaid')
+                                        
+                                        -- ✅ LẤY TỪ FILE (ĐÃ LƯU KHI CÒN TRONG DUNGEON)
+                                        local dungeonId = ao.PartyDungeonId
+                                        local difficulty = ao.PartyDifficulty
+                                        
+                                        warn("🔄 StartRaid - DungeonId:", dungeonId, "Difficulty:", difficulty)
+                                        
+                                        if dungeonId and difficulty then
+                                            StartRaid:FireServer(dungeonId, difficulty)
+                                            
+                                            WindUI:Notify({
+                                                Title = "Party Leader",
+                                                Content = "👑 LEADER đang restart dungeon...",
+                                                Duration = 5
+                                            })
+                                        else
+                                            warn("❌ DungeonId hoặc Difficulty bị nil!")
+                                        end
+                                    end)
                                     
-                                    warn("🔄 StartRaid - DungeonId:", dungeonId, "Difficulty:", difficulty)
+                                    -- Reset state
+                                    ao.PartyRejoinDungeon = false
+                                    ao.PartyDungeonJobId = nil
+                                    ao.PartyDungeonPlaceId = nil
+                                    ao.PartyDungeonId = nil
+                                    ao.PartyDifficulty = nil
+                                    savePartyData()
+                                else
+                                    warn("👤 MEMBER đợi LEADER restart dungeon...")
                                     
-                                    if dungeonId and difficulty then
-                                        StartRaid:FireServer(dungeonId, difficulty)
-                                    end
-                                end)
-                                
-                                -- Reset state
-                                ao.PartyRejoinDungeon = false
-                                ao.PartyDungeonJobId = nil
-                                ao.PartyDungeonPlaceId = nil
-                                savePartyData()
+                                    WindUI:Notify({
+                                        Title = "Party Member",
+                                        Content = "⏳ Đợi LEADER restart dungeon...",
+                                        Duration = 5
+                                    })
+                                end
                                 
                                 return
                             else
