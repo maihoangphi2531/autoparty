@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luachominh
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -936,6 +936,92 @@ task.spawn(function()
             
             warn("📊 Party Status: ", currentCount, "/", expectedTotal, "(Online:", onlineCount, "/", expectedTotal, ")")
             
+            -- ✅ KIỂM TRA RESTART DUNGEON TRƯỚC KHI LÀM GÌ KHÁC
+            if currentCount >= expectedTotal and allOnline and isInWorld1() then
+                warn("✅ Party đủ người + Tất cả online + Đang ở World 1")
+                
+                -- Reload party data để đồng bộ
+                loadPartyData()
+                task.wait(0.5)
+                
+                if ao.PartyRejoinDungeon and ao.PartyDungeonId and ao.PartyDifficulty then
+                    local timeDiff = tick() - ao.PartyTimestamp
+                    
+                    if timeDiff <= ao.PartyThreshold then
+                        warn("🎯 Có dungeon đã lưu → Chuẩn bị restart!")
+                        warn("💾 DungeonId:", ao.PartyDungeonId, "Difficulty:", ao.PartyDifficulty)
+                        
+                        WindUI:Notify({
+                            Title = "Party Ready",
+                            Content = "🎯 Đủ người! Restart dungeon sau 5 giây...",
+                            Duration = 5
+                        })
+                        
+                        task.wait(5)
+                        
+                        if isLeader() then
+                            warn("👑 LEADER đang restart dungeon via StartRaid")
+                            
+                            pcall(function()
+                                local StartRaid = a5:WaitForChild('Teleport'):WaitForChild('StartRaid')
+                                local dungeonId = ao.PartyDungeonId
+                                local difficulty = ao.PartyDifficulty
+                                
+                                warn("🔄 StartRaid - DungeonId:", dungeonId, "Difficulty:", difficulty)
+                                
+                                if dungeonId and difficulty then
+                                    StartRaid:FireServer(dungeonId, difficulty)
+                                    
+                                    WindUI:Notify({
+                                        Title = "Party Leader",
+                                        Content = "👑 LEADER đang restart dungeon...",
+                                        Duration = 5
+                                    })
+                                    
+                                    warn("✅ Đã gọi StartRaid thành công!")
+                                else
+                                    warn("❌ DungeonId hoặc Difficulty bị nil!")
+                                end
+                            end)
+                            
+                            task.wait(3)
+                            
+                            -- Reset state sau khi restart
+                            ao.PartyRejoinDungeon = false
+                            ao.PartyDungeonJobId = nil
+                            ao.PartyDungeonPlaceId = nil
+                            ao.PartyDungeonId = nil
+                            ao.PartyDifficulty = nil
+                            savePartyData()
+                            
+                            warn("🗑️ Đã reset party dungeon state")
+                        else
+                            warn("👤 MEMBER đợi LEADER restart dungeon...")
+                            
+                            WindUI:Notify({
+                                Title = "Party Member",
+                                Content = "⏳ Đợi LEADER restart dungeon...",
+                                Duration = 5
+                            })
+                        end
+                        
+                        -- Tiếp tục monitoring
+                        task.wait(PartyGlobals.PartyCheckDelay)
+                        continue
+                    else
+                        warn("⚠️ Dungeon JobId quá cũ (>10 phút), bỏ qua")
+                        ao.PartyRejoinDungeon = false
+                        ao.PartyDungeonJobId = nil
+                        ao.PartyDungeonPlaceId = nil
+                        ao.PartyDungeonId = nil
+                        ao.PartyDifficulty = nil
+                        savePartyData()
+                    end
+                else
+                    warn("ℹ️ Không có dungeon đã lưu để restart")
+                end
+            end
+            
             -- ✅ KIỂM TRA: NẾU PARTY ĐẦY NHƯNG CÓ NGƯỜI OFFLINE → THOÁT PARTY VÀ REJOIN NGAY
             if currentCount >= expectedTotal and not allOnline then
                 warn("🔴 Party đủ người (", currentCount, "/", expectedTotal, ") nhưng có người offline → Thoát party và rejoin")
@@ -1211,23 +1297,25 @@ task.spawn(function()
                     warn("👥 Người online và cùng server (World 1) → Mời/Accept")
                     
                     -- ✅ MEMBER: Kiểm tra có đang ở party sai không → Rời party
-                    if not isLeader() then
-                        local myPartyId = getMyPartyId()
-                        if myPartyId then
-                            -- Kiểm tra leader có trong party này không
-                            local leaderName = PartyGlobals.PartySetup.Leader
-                            if not isInParty(leaderName) then
-                                warn("⚠️ Đang ở party khác, không có leader → Rời party")
-                                pcall(function()
-                                    game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Party"):WaitForChild("LeaveParty"):InvokeServer()
-                                    warn("✅ Đã rời party sai")
-                                    task.wait(1)
-                                end)
-                            end
+                if not isLeader() then
+                    local myPartyId = getMyPartyId()
+                    if myPartyId then
+                        -- Kiểm tra leader có trong party này không
+                        local leaderName = PartyGlobals.PartySetup.Leader
+                        if not isInParty(leaderName) then
+                            warn("⚠️ Đang ở party khác, không có leader → Rời party")
+                            pcall(function()
+                                local success = game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Party"):WaitForChild("LeaveParty"):InvokeServer()
+                                if success then
+                                    warn("✅ Đã rời party sai thành công")
+                                else
+                                    warn("⚠️ LeaveParty trả về false")
+                                end
+                                task.wait(2)
+                            end)
                         end
                     end
-                    
-                    -- Leader mời members
+                end                    -- Leader mời members
                     if isLeader() then
                         for _, memberName in ipairs(missingMembers) do
                             if game:GetService("Players"):FindFirstChild(memberName) then
@@ -1246,84 +1334,6 @@ task.spawn(function()
                     end
                     
                     rejoinAttempts = 0
-                    
-                    -- ✅ KIỂM TRA SAU KHI MỜI/ACCEPT: NẾU PARTY ĐÃ ĐỦ + TẤT CẢ ONLINE → RESTART DUNGEON
-                    task.wait(5) -- Đợi invite/accept hoàn tất
-                    
-                    local currentCountAfter = getCurrentPartyMemberCount()
-                    local expectedTotal = getExpectedPartySize()
-                    local allOnlineAfter = areAllMembersOnline()
-                    
-                    if currentCountAfter >= expectedTotal and allOnlineAfter then
-                        -- ✅ Reload party data để đồng bộ
-                        loadPartyData()
-                        
-                        if ao.PartyRejoinDungeon and ao.PartyDungeonJobId then
-                            local timeDiff = tick() - ao.PartyTimestamp
-                            
-                            if timeDiff <= ao.PartyThreshold then
-                                warn("🎯 Party đủ + Online + Có dungeon saved → Restart dungeon!")
-                                
-                                WindUI:Notify({
-                                    Title = "Party Ready",
-                                    Content = "🎯 Đủ người! Restart dungeon sau 10 giây...",
-                                    Duration = 10
-                                })
-                                
-                                -- ✅ CHỈ LEADER MỚI ĐƯỢC GỌI StartRaid
-                                task.wait(10)
-                                
-                                if isLeader() then
-                                    warn("👑 LEADER đang restart dungeon via StartRaid")
-                                    
-                                    -- ✅ SỬ DỤNG StartRaid VỚI DUNGEONID VÀ DIFFICULTY ĐÃ LƯU
-                                    pcall(function()
-                                        local StartRaid = a5:WaitForChild('Teleport'):WaitForChild('StartRaid')
-                                        
-                                        -- ✅ LẤY TỪ FILE (ĐÃ LƯU KHI CÒN TRONG DUNGEON)
-                                        local dungeonId = ao.PartyDungeonId
-                                        local difficulty = ao.PartyDifficulty
-                                        
-                                        warn("🔄 StartRaid - DungeonId:", dungeonId, "Difficulty:", difficulty)
-                                        
-                                        if dungeonId and difficulty then
-                                            StartRaid:FireServer(dungeonId, difficulty)
-                                            
-                                            WindUI:Notify({
-                                                Title = "Party Leader",
-                                                Content = "👑 LEADER đang restart dungeon...",
-                                                Duration = 5
-                                            })
-                                        else
-                                            warn("❌ DungeonId hoặc Difficulty bị nil!")
-                                        end
-                                    end)
-                                    
-                                    -- Reset state
-                                    ao.PartyRejoinDungeon = false
-                                    ao.PartyDungeonJobId = nil
-                                    ao.PartyDungeonPlaceId = nil
-                                    ao.PartyDungeonId = nil
-                                    ao.PartyDifficulty = nil
-                                    savePartyData()
-                                else
-                                    warn("👤 MEMBER đợi LEADER restart dungeon...")
-                                    
-                                    WindUI:Notify({
-                                        Title = "Party Member",
-                                        Content = "⏳ Đợi LEADER restart dungeon...",
-                                        Duration = 5
-                                    })
-                                end
-                                
-                                return
-                            else
-                                warn("⚠️ Dungeon JobId quá cũ (>10 phút), bỏ qua")
-                                ao.PartyRejoinDungeon = false
-                                savePartyData()
-                            end
-                        end
-                    end
                 end
                 
                 -- ✅ NẾU CÓ NGƯỜI ONLINE NHƯNG KHÁC SERVER HOẶC KHÔNG PHẢI WORLD 1
