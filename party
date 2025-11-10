@@ -1268,7 +1268,7 @@ task.spawn(function()
                             if game.JobId == targetJobId and game.PlaceId == targetPlaceId then
                                 warn("✅ Đã ở đúng server (PlaceId:", targetPlaceId, "JobId:", targetJobId:sub(1,20), "), không cần rejoin")
                             else
-                                warn("🎲 Rejoin về: World 1 - JobId:", targetJobId)
+                                warn("🎲 Rejoin về: World 1 - JobId:", targetJobId:sub(1,20))
                                 
                                 if isLeader() then
                                     WindUI:Notify({
@@ -1287,6 +1287,33 @@ task.spawn(function()
                                 task.wait(2)
                                 SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
                                 return
+                            end
+                        else
+                            warn("❌ [MEMBER] Không có JobId để rejoin - Có thể LEADER chưa tạo hoặc file chưa sync")
+                            
+                            -- ✅ THÊM: NẾU MEMBER KHÔNG NHẬN ĐƯỢC JOBID → THỬ LẠI 1 LẦN NỮA
+                            if not isLeader() then
+                                warn("🔄 [MEMBER] Thử reload JobId 1 lần nữa...")
+                                task.wait(5)
+                                
+                                if reloadSharedRejoinJobId() and PartyGlobals.SharedRejoinJobId then
+                                    targetPlaceId = PartyGlobals.SharedRejoinPlaceId
+                                    targetJobId = PartyGlobals.SharedRejoinJobId
+                                    
+                                    warn("✅ [MEMBER] Reload thành công! PlaceId:", targetPlaceId, "JobId:", targetJobId:sub(1,20))
+                                    
+                                    WindUI:Notify({
+                                        Title = "Rejoining",
+                                        Content = "🔄 Đã nhận JobId! Đang rejoin...",
+                                        Duration = 5
+                                    })
+                                    
+                                    task.wait(2)
+                                    SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
+                                    return
+                                else
+                                    warn("❌ [MEMBER] Reload thất bại - Bỏ qua cycle này")
+                                end
                             end
                         end
                     end
