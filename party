@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luaas
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -1131,38 +1131,81 @@ task.spawn(function()
             else
                 warn("⚠️ Party thiếu", expectedTotal - onlineCount, "người (dựa trên online count)")
                 
-                -- ✅ THÊM: MEMBER KIỂM TRA JOBID NGAY KHI THIẾU NGƯỜI (TRƯỚC KHI LÀM GÌ KHÁC)
-                -- Kiểm tra khi KHÔNG trong dungeon (tất cả worlds, không chỉ World 1)
-                if not isLeader() and not aC then
-                    warn("📂 [MEMBER CHECK] Đang kiểm tra JobId (Không trong dungeon)...")
-                    warn("📂 [MEMBER CHECK] PlaceId:", game.PlaceId)
-                    reloadSharedRejoinJobId()
-                    task.wait(0.5)
-                    
-                    if PartyGlobals.SharedRejoinJobId then
-                        local currentJobId = game.JobId
-                        local expectedJobId = PartyGlobals.SharedRejoinJobId
+                -- ✅ MEMBER: KIỂM TRA THIẾU NGƯỜI VÀ XỬ LÝ REJOIN
+                if not isLeader() then
+                    -- ✅ NẾU ĐANG TRONG DUNGEON VÀ THIẾU NGƯỜI → LƯU STATE VÀ REJOIN NGAY
+                    if aC then
+                        warn("🏰 [MEMBER IN DUNGEON] Đang trong dungeon và phát hiện thiếu người!")
+                        warn("🏰 [MEMBER IN DUNGEON] Lưu state và chuẩn bị rejoin...")
                         
-                        warn("🔍 [MEMBER CHECK] Current JobId:", currentJobId:sub(1,20))
-                        warn("🔍 [MEMBER CHECK] Expected JobId:", expectedJobId:sub(1,20))
+                        -- Lưu dungeon state
+                        ao.PartyRejoinDungeon = true
+                        ao.PartyDungeonJobId = game.JobId
+                        ao.PartyDungeonPlaceId = game.PlaceId
+                        ao.PartyDungeonId = ay
+                        ao.PartyDifficulty = az
+                        ao.PartyTimestamp = tick()
+                        savePartyData()
+                        warn("💾 [MEMBER IN DUNGEON] Đã lưu: DungeonId=", ay, "Difficulty=", az)
                         
-                        if currentJobId ~= expectedJobId then
-                            warn("❌ [MEMBER CHECK] SAI JOBID! Đang teleport...")
+                        -- Đợi 3 giây để xác nhận
+                        task.wait(3)
+                        
+                        -- Reload JobId để đồng bộ với leader
+                        warn("📂 [MEMBER IN DUNGEON] Đang reload JobId để rejoin...")
+                        reloadSharedRejoinJobId()
+                        task.wait(0.5)
+                        
+                        if PartyGlobals.SharedRejoinJobId then
+                            local targetPlaceId = PartyGlobals.SharedRejoinPlaceId
+                            local targetJobId = PartyGlobals.SharedRejoinJobId
+                            
+                            warn("✅ [MEMBER IN DUNGEON] Đã có JobId để rejoin:", targetJobId:sub(1,20))
                             
                             WindUI:Notify({
-                                Title = "Wrong Server",
-                                Content = "🔄 Sai server! Đang rejoin về đúng server...",
+                                Title = "Missing Party Member",
+                                Content = "🔄 Thiếu người! Đang rejoin về World 1...",
                                 Duration = 5
                             })
                             
                             task.wait(2)
-                            SharedJobIdSystem:TeleportToPlace(PartyGlobals.SharedRejoinPlaceId, expectedJobId)
+                            SharedJobIdSystem:TeleportToPlace(targetPlaceId, targetJobId)
                             return
                         else
-                            warn("✅ [MEMBER CHECK] Đúng JobId rồi!")
+                            warn("⚠️ [MEMBER IN DUNGEON] Chưa có SharedRejoinJobId, đợi cycle tiếp theo")
                         end
                     else
-                        warn("⚠️ [MEMBER CHECK] Chưa có SharedRejoinJobId")
+                        -- ✅ NẾU KHÔNG TRONG DUNGEON → KIỂM TRA JOBID
+                        warn("📂 [MEMBER CHECK] Đang kiểm tra JobId (Không trong dungeon)...")
+                        warn("📂 [MEMBER CHECK] PlaceId:", game.PlaceId)
+                        reloadSharedRejoinJobId()
+                        task.wait(0.5)
+                        
+                        if PartyGlobals.SharedRejoinJobId then
+                            local currentJobId = game.JobId
+                            local expectedJobId = PartyGlobals.SharedRejoinJobId
+                            
+                            warn("🔍 [MEMBER CHECK] Current JobId:", currentJobId:sub(1,20))
+                            warn("🔍 [MEMBER CHECK] Expected JobId:", expectedJobId:sub(1,20))
+                            
+                            if currentJobId ~= expectedJobId then
+                                warn("❌ [MEMBER CHECK] SAI JOBID! Đang teleport...")
+                                
+                                WindUI:Notify({
+                                    Title = "Wrong Server",
+                                    Content = "🔄 Sai server! Đang rejoin về đúng server...",
+                                    Duration = 5
+                                })
+                                
+                                task.wait(2)
+                                SharedJobIdSystem:TeleportToPlace(PartyGlobals.SharedRejoinPlaceId, expectedJobId)
+                                return
+                            else
+                                warn("✅ [MEMBER CHECK] Đúng JobId rồi!")
+                            end
+                        else
+                            warn("⚠️ [MEMBER CHECK] Chưa có SharedRejoinJobId")
+                        end
                     end
                 end
                 
