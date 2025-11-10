@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luad
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -1130,6 +1130,41 @@ task.spawn(function()
                 end
             else
                 warn("⚠️ Party thiếu", expectedTotal - onlineCount, "người (dựa trên online count)")
+                
+                -- ✅ THÊM: MEMBER KIỂM TRA JOBID NGAY KHI THIẾU NGƯỜI (TRƯỚC KHI LÀM GÌ KHÁC)
+                -- Kiểm tra khi KHÔNG trong dungeon (tất cả worlds, không chỉ World 1)
+                if not isLeader() and not aC then
+                    warn("📂 [MEMBER CHECK] Đang kiểm tra JobId (Không trong dungeon)...")
+                    warn("📂 [MEMBER CHECK] PlaceId:", game.PlaceId)
+                    reloadSharedRejoinJobId()
+                    task.wait(0.5)
+                    
+                    if PartyGlobals.SharedRejoinJobId then
+                        local currentJobId = game.JobId
+                        local expectedJobId = PartyGlobals.SharedRejoinJobId
+                        
+                        warn("🔍 [MEMBER CHECK] Current JobId:", currentJobId:sub(1,20))
+                        warn("🔍 [MEMBER CHECK] Expected JobId:", expectedJobId:sub(1,20))
+                        
+                        if currentJobId ~= expectedJobId then
+                            warn("❌ [MEMBER CHECK] SAI JOBID! Đang teleport...")
+                            
+                            WindUI:Notify({
+                                Title = "Wrong Server",
+                                Content = "🔄 Sai server! Đang rejoin về đúng server...",
+                                Duration = 5
+                            })
+                            
+                            task.wait(2)
+                            SharedJobIdSystem:TeleportToPlace(PartyGlobals.SharedRejoinPlaceId, expectedJobId)
+                            return
+                        else
+                            warn("✅ [MEMBER CHECK] Đúng JobId rồi!")
+                        end
+                    else
+                        warn("⚠️ [MEMBER CHECK] Chưa có SharedRejoinJobId")
+                    end
+                end
                 
                 local missingMembers = getMissingMembers()
                 local onlineMissingCount = 0
