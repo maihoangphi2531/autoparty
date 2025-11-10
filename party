@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luad
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -1324,25 +1324,48 @@ task.spawn(function()
                     warn("👥 Người online và cùng server (World 1) → Mời/Accept")
                     
                     -- ✅ MEMBER: Kiểm tra có đang ở party sai không → Rời party
-                if not isLeader() then
-                    local myPartyId = getMyPartyId()
-                    if myPartyId then
-                        -- Kiểm tra leader có trong party này không
-                        local leaderName = PartyGlobals.PartySetup.Leader
-                        if not isInParty(leaderName) then
-                            warn("⚠️ Đang ở party khác, không có leader → Rời party")
-                            pcall(function()
-                                local success = game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Party"):WaitForChild("LeaveParty"):InvokeServer()
-                                if success then
-                                    warn("✅ Đã rời party sai thành công")
-                                else
-                                    warn("⚠️ LeaveParty trả về false")
-                                end
-                                task.wait(2)
-                            end)
+                    if not isLeader() then
+                        local myPartyId = getMyPartyId()
+                        if myPartyId then
+                            -- Kiểm tra leader có trong party này không
+                            local leaderName = PartyGlobals.PartySetup.Leader
+                            if not isInParty(leaderName) then
+                                warn("⚠️ Đang ở party khác, không có leader → Rời party")
+                                pcall(function()
+                                    local success = game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Party"):WaitForChild("LeaveParty"):InvokeServer()
+                                    if success then
+                                        warn("✅ Đã rời party sai thành công")
+                                    else
+                                        warn("⚠️ LeaveParty trả về false")
+                                    end
+                                    task.wait(2)
+                                end)
+                            end
+                        end
+                        
+                        -- ✅ THÊM: Member kiểm tra có đang ở đúng JobId không
+                        warn("📂 [MEMBER] Kiểm tra có đang ở đúng JobId không...")
+                        reloadSharedRejoinJobId()
+                        task.wait(0.5)
+                        
+                        if PartyGlobals.SharedRejoinJobId and game.JobId ~= PartyGlobals.SharedRejoinJobId then
+                            warn("⚠️ [MEMBER] Đang ở sai JobId!")
+                            warn("⚠️ [MEMBER] Current JobId:", game.JobId:sub(1,20))
+                            warn("⚠️ [MEMBER] Expected JobId:", PartyGlobals.SharedRejoinJobId:sub(1,20))
+                            
+                            WindUI:Notify({
+                                Title = "Wrong Server",
+                                Content = "🔄 Đang ở sai server! Đang rejoin...",
+                                Duration = 5
+                            })
+                            
+                            task.wait(2)
+                            SharedJobIdSystem:TeleportToPlace(PartyGlobals.SharedRejoinPlaceId, PartyGlobals.SharedRejoinJobId)
+                            return
                         end
                     end
-                end                    -- Leader mời members
+                    
+                    -- Leader mời members
                     if isLeader() then
                         for _, memberName in ipairs(missingMembers) do
                             if game:GetService("Players"):FindFirstChild(memberName) then
