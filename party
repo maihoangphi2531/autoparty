@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luallll
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.lua
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -1866,19 +1866,7 @@ local function createAutoPartyTab()
     createRejoinSystemUI(TabParty)
     
     TabParty:Divider({ Text = "Party Control" })
-    -- Trong hàm createAutoPartyTab(), thêm sau "Party Control" Divider:
-
-    TabParty:Slider({
-        Title = "Party Check Delay",
-        Description = "Độ trễ giữa các lần kiểm tra party (giây)",
-        Default = PartyGlobals.PartyCheckDelay or 10,
-        Min = 5,
-        Max = 60,
-        Callback = function(value)
-            PartyGlobals.PartyCheckDelay = tonumber(value) or 10
-            warn("✅ Đã đặt Party Check Delay:", PartyGlobals.PartyCheckDelay, "giây")
-        end
-    })
+    
     ConfigSystem.registerUIElement("AutoAcceptInvite", TabParty:Toggle({ 
         Title = "Auto Accept Invite", 
         Description = "Tự động accept invite từ leader (Member only)", 
