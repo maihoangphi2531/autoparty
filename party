@@ -1,5 +1,5 @@
 -- ==================== AUTO PARTY MODULE ====================
--- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luaas
+-- Load từ: https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/autoparty.luallll
 -- Yêu cầu: WindUI, các biến global từ file chính
 -- ===========================================================
 
@@ -1741,15 +1741,27 @@ local function createAutoPartyTab()
     
     TabParty:Divider({ Text = "Party Setup" })
     
+    local function getPlayersListWithNone()
+        local list = {"-- None --"}
+        for _, name in ipairs(getPlayersList()) do
+            table.insert(list, name)
+        end
+        return list
+    end
+    
     TabParty:Dropdown({ 
         Title = "Party Leader", 
-        Description = "Chọn tên player làm leader", 
-        Values = getPlayersList(), 
+        Description = "Chọn tên player làm leader (None để xóa)", 
+        Values = getPlayersListWithNone(), 
         Multi = false, 
         Callback = function(v) 
             if PartyGlobals.isInitializingUI then return end
             
-            PartyGlobals.PartySetup.Leader = v or ""
+            if v == "-- None --" or not v then
+                PartyGlobals.PartySetup.Leader = ""
+            else
+                PartyGlobals.PartySetup.Leader = v
+            end
             updateStatus()
             savePartyConfig()
         end 
@@ -1758,13 +1770,17 @@ local function createAutoPartyTab()
     for i = 1, 5 do 
         TabParty:Dropdown({ 
             Title = "Member " .. i, 
-            Description = "Chọn tên player", 
-            Values = getPlayersList(), 
+            Description = "Chọn tên player (None để xóa)", 
+            Values = getPlayersListWithNone(), 
             Multi = false, 
             Callback = function(v) 
                 if PartyGlobals.isInitializingUI then return end
                 
-                PartyGlobals.PartySetup.Members[i] = v or ""
+                if v == "-- None --" or not v then
+                    PartyGlobals.PartySetup.Members[i] = ""
+                else
+                    PartyGlobals.PartySetup.Members[i] = v
+                end
                 updateStatus()
                 savePartyConfig()
             end 
@@ -1855,12 +1871,12 @@ local function createAutoPartyTab()
     TabParty:Slider({
         Title = "Party Check Delay",
         Description = "Độ trễ giữa các lần kiểm tra party (giây)",
-        Default = 10,
+        Default = PartyGlobals.PartyCheckDelay or 10,
         Min = 5,
         Max = 60,
         Callback = function(value)
-            PartyGlobals.PartyCheckDelay = value
-            warn("✅ Đã đặt Party Check Delay:", value, "giây")
+            PartyGlobals.PartyCheckDelay = tonumber(value) or 10
+            warn("✅ Đã đặt Party Check Delay:", PartyGlobals.PartyCheckDelay, "giây")
         end
     })
     ConfigSystem.registerUIElement("AutoAcceptInvite", TabParty:Toggle({ 
